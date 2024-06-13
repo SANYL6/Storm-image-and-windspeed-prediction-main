@@ -1,119 +1,107 @@
-import torch
-import numpy as np
-import random
-import torch.optim as optim
 import torch.nn as nn
-import torch.nn.functional as F
-# from pytorch_msssim import ssim
-from skimage.metrics import structural_similarity as ssim
+
+class ImageRegressionCNN(nn.Module):
+    def __init__(self):
+        super(ImageRegressionCNN, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1)
+        self.act1 = nn.LeakyReLU(0.2)
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.conv2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1)
+        self.act2 = nn.LeakyReLU(0.2)
+        self.conv2_5 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        self.act2_5 = nn.LeakyReLU(0.2)
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.flatten = nn.Flatten()
+
+        # Calculate the correct input size
+        self.fc1_input_size = 64 * 64 * 64
+        self.fc1 = nn.Linear(self.fc1_input_size, 128)
+        self.act3 = nn.ReLU()
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, 1)
+
+        # Residual connection
+        # self.res_conv1 = nn.Conv2d(32, 64, kernel_size=1, stride=1, padding=0)
+
+    def forward(self, x):
+        # Convolutional layers
+        x = self.pool1(self.act1(self.conv1(x)))
+        # residual = self.res_conv1(x)
+        x = self.act2_5(self.conv2_5(self.act2(self.conv2(x))))
+        x = self.pool2(x)
+
+        # Fully connected layers
+        x = self.flatten(x)
+        x = self.act3(self.fc1(x))
+        x = self.fc2(x)
+        x = self.fc3(x)
+        return x
+
+# class ImageRegressionCNN(nn.Module):
+#     def __init__(self):
+#         super(ImageRegressionCNN, self).__init__()
+#         self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1)
+#         self.act1 = nn.LeakyReLU(0.2)
+#         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+#         self.conv2_5 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1)
+#         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+#         self.act2 = nn.LeakyReLU(0.2)
+#         self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+#         self.flatten = nn.Flatten()
+#
+#         # Calculate the correct input size
+#         self.fc1_input_size = 64 * 64 * 64
+#         self.fc1 = nn.Linear(self.fc1_input_size, 128)
+#         self.act3 = nn.ReLU()
+#         self.fc2 = nn.Linear(128, 64)
+#         self.fc3 = nn.Linear(64, 1)
+#
+#     def forward(self, x):
+#         x = self.pool1(self.act1(self.conv1(x)))
+#         x = self.act2(self.conv2_5(x))
+#         x = self.pool2(self.act2(self.conv2(x)))
+#         x = self.flatten(x)
+#         x = self.act2(self.fc1(x))
+#         x = self.fc2(x)
+#         x = self.fc3(self.act3(x))
+#         return x
+import torch.nn as nn
+import torch.optim as optim
+import torch
+from restormer_arch import TransformerBlock
+
+# class ImageRegressionCNN(nn.Module):
+#     def __init__(self):
+#         super(ImageRegressionCNN, self).__init__()
+#         self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1)
+#         self.act1 = nn.LeakyReLU(0.2)
+#         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+#         self.TransformerBlock1 = nn.Sequential(*[TransformerBlock(dim=32, num_heads=1, ffn_expansion_factor=2.66, bias=False, LayerNorm_type='WithBias') for i in range(4)])
+#         self.conv2_5 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1)
+#         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+#         self.act2 = nn.LeakyReLU(0.2)
+#         self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+#         self.flatten = nn.Flatten()
+#
+#         # Calculate the correct input size
+#         self.fc1_input_size = 64 * 64 * 64
+#         self.fc1 = nn.Linear(self.fc1_input_size, 128)
+#         self.act3 = nn.ReLU()
+#         self.fc2 = nn.Linear(128, 64)
+#         self.fc3 = nn.Linear(64, 1)
+#
+#     def forward(self, x):
+#         x = self.pool1(self.act1(self.conv1(x)))
+#         x = self.TransformerBlock1(x)
+#         x = self.act2(self.conv2_5(x))
+#         x = self.pool2(self.act2(self.conv2(x)))
+#         x = self.flatten(x)
+#         x = self.act2(self.fc1(x))
+#         x = self.fc2(x)
+#         x = self.fc3(self.act3(x))
+#         return x
 
 
-def set_seed(seed):
-    """
-    Use this to set ALL the random seeds to a fixed value
-    and take out any randomness from cuda kernels
-    """
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.enabled = False
-
-    return True
 
 
-class ConvLSTMCell(nn.Module):
-    def __init__(self, input_channels, hidden_channels, kernel_size):
-        super(ConvLSTMCell, self).__init__()
-        self.input_channels = input_channels
-        self.hidden_channels = hidden_channels
-        self.kernel_size = kernel_size
-        self.padding = kernel_size // 2
-        self.conv = nn.Conv2d(in_channels=self.input_channels + self.hidden_channels,
-                              out_channels=4 * self.hidden_channels,
-                              kernel_size=self.kernel_size,
-                              padding=self.padding)
-
-    def forward(self, input_tensor, cur_state):
-        h_cur, c_cur = cur_state
-        combined = torch.cat([input_tensor, h_cur], dim=1)
-        combined_conv = self.conv(combined)
-        combined_conv = F.elu(combined_conv)  # Applying ELU activation
-
-        cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_channels, dim=1)
-        i = torch.sigmoid(cc_i)
-        f = torch.sigmoid(cc_f)
-        o = torch.sigmoid(cc_o)
-        g = torch.tanh(cc_g)
-
-        c_next = f * c_cur + i * g
-        h_next = o * torch.tanh(c_next)
-
-        return h_next, c_next
-
-    def init_hidden(self, batch_size, image_size):
-        height, width = image_size
-        device = next(self.parameters()).device
-        return (torch.zeros(batch_size, self.hidden_channels, height, width, device=device),
-                torch.zeros(batch_size, self.hidden_channels, height, width, device=device))
-
-class ConvEncoder(nn.Module):
-    def __init__(self, input_channels, hidden_channels, kernel_size, dropout_prob=0.7):
-        super(ConvEncoder, self).__init__()
-        self.conv_lstm1 = ConvLSTMCell(input_channels, hidden_channels // 2, kernel_size)
-
-        self.batch_norm = nn.BatchNorm2d(hidden_channels // 2)
-        self.dropout = nn.Dropout2d(dropout_prob)
-
-    def forward(self, input_tensor):
-        batch_size, seq_len, _, height, width = input_tensor.size()
-        h, c = self.conv_lstm1.init_hidden(batch_size, (height, width))
-        last_state = None
-
-        for t in range(seq_len):
-            h, c = self.conv_lstm1(input_tensor[:, t, :, :, :], (h, c))
-
-            h = self.batch_norm(h)
-            h = self.dropout(h)
-            if t == seq_len - 1:
-                last_state = h
-
-        return last_state, (h, c)
-
-class ConvDecoder(nn.Module):
-    def __init__(self, hidden_channels, output_channels, kernel_size, dropout_prob=0.7):
-        super(ConvDecoder, self).__init__()
-        self.conv_lstm1 = ConvLSTMCell(hidden_channels // 2, hidden_channels // 2, kernel_size)
-        self.batch_norm = nn.BatchNorm2d(hidden_channels // 2)
-        self.conv = nn.Conv2d(hidden_channels // 2, output_channels, kernel_size=1)
-        self.dropout = nn.Dropout2d(dropout_prob)
-
-    def forward(self, encoder_last_state, h, c, seq_len):
-        outputs = []
-
-        for t in range(seq_len):
-            h, c = self.conv_lstm1(h, (h, c))
-            h = self.batch_norm(h)
-            if t == 0:
-                h = h + encoder_last_state
-            h = self.dropout(h)
-            outputs.append(h)
-
-        output = self.conv(outputs[-1])
-        output = output.unsqueeze(1)
-
-        return output
-
-class Seq2SeqAutoencoder(nn.Module):
-    def __init__(self, input_channels, hidden_channels, output_channels, kernel_size):
-        super(Seq2SeqAutoencoder, self).__init__()
-        self.encoder = ConvEncoder(input_channels, hidden_channels, kernel_size)
-
-        self.decoder = ConvDecoder(hidden_channels, output_channels, kernel_size)
-
-    def forward(self, input_tensor):
-        encoder_last_state, (h, c) = self.encoder(input_tensor)
-        output = self.decoder(encoder_last_state, h, c, seq_len=1)
-        return output
